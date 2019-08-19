@@ -70,7 +70,7 @@ class DocxMustache
         $now = time();
         $isExpired = ($now - (60 * 240));
         $disk = \Storage::disk($this->storageDisk);
-        $all_dirs = $disk->directories($this->storagePathPrefix.'DocxMustache');
+        $all_dirs = $disk->directories($this->storagePathPrefix . 'DocxMustache');
         foreach ($all_dirs as $dir) {
             //delete dirs older than 20min
             if ($disk->lastModified($dir) < $isExpired) {
@@ -82,7 +82,7 @@ class DocxMustache
     public function GetTmpDir()
     {
         $this->CleanUpTmpDirs();
-        $path = $this->storagePathPrefix.'DocxMustache/'.uniqid($this->template_file).'/';
+        $path = $this->storagePathPrefix . 'DocxMustache/' . uniqid($this->template_file) . '/';
         \File::makeDirectory($this->StoragePath($path), 0775, true);
 
         return $path;
@@ -92,13 +92,13 @@ class DocxMustache
     {
         $this->Log('Get Copy of Template');
         $this->local_path = $this->GetTmpDir();
-        \Storage::disk($this->storageDisk)->copy($this->storagePathPrefix.$this->template_file, $this->local_path.$this->template_file_name);
+        \Storage::disk($this->storageDisk)->copy($this->storagePathPrefix . $this->template_file, $this->local_path . $this->template_file_name);
     }
 
     protected function exctractOpenXmlFile($file)
     {
         $this->zipper
-            ->make($this->StoragePath($this->local_path.$this->template_file_name))
+            ->make($this->StoragePath($this->local_path . $this->template_file_name))
             ->extractTo($this->StoragePath($this->local_path), [$file], \Chumper\Zipper\Zipper::WHITELIST);
     }
 
@@ -106,16 +106,16 @@ class DocxMustache
     {
         $this->exctractOpenXmlFile($file);
         if ($type == 'file') {
-            if ($file_contents = \Storage::disk($this->storageDisk)->get($this->local_path.$file)) {
+            if ($file_contents = \Storage::disk($this->storageDisk)->get($this->local_path . $file)) {
                 return $file_contents;
             } else {
-                throw new Exception('Cannot not read file '.$file);
+                throw new Exception('Cannot not read file ' . $file);
             }
         } else {
-            if ($xml_object = simplexml_load_file($this->StoragePath($this->local_path.$file))) {
+            if ($xml_object = simplexml_load_file($this->StoragePath($this->local_path . $file))) {
                 return $xml_object;
             } else {
-                throw new Exception('Cannot load XML Object from file '.$file);
+                throw new Exception('Cannot load XML Object from file ' . $file);
             }
         }
     }
@@ -123,14 +123,14 @@ class DocxMustache
     protected function SaveOpenXmlFile($file, $folder, $content)
     {
         \Storage::disk($this->storageDisk)
-            ->put($this->local_path.$file, $content);
+            ->put($this->local_path . $file, $content);
         //add new content to word doc
         if ($folder) {
             $this->zipper->folder($folder)
-                ->add($this->StoragePath($this->local_path.$file));
+                ->add($this->StoragePath($this->local_path . $file));
         } else {
             $this->zipper
-                ->add($this->StoragePath($this->local_path.$file));
+                ->add($this->StoragePath($this->local_path . $file));
         }
     }
 
@@ -139,7 +139,7 @@ class DocxMustache
         if ($xmlString = $xmlObject->asXML()) {
             $this->SaveOpenXmlFile($file, $folder, $xmlString);
         } else {
-            throw new Exception('Cannot generate xml for '.$file);
+            throw new Exception('Cannot generate xml for ' . $file);
         }
     }
 
@@ -154,6 +154,12 @@ class DocxMustache
         $this->word_doc = MustacheRender::render($this->items, $this->word_doc);
 
         $this->word_doc = HtmlConversion::convert($this->word_doc);
+        preg_match_all("'(<w:p>.*?</w:p>)'si", $this->word_doc, $matches);
+        foreach ($matches[0] as $match) {
+            if (strpos($match, '<w:t xml:space="preserve"></w:t>') !== false) {
+                $this->word_doc = str_replace($match, '', $this->word_doc);
+            }
+        }
 
         $this->ImageReplacer($dpi);
 
@@ -186,7 +192,7 @@ class DocxMustache
         if (!$ct_already_set) {
             $sxe = $ct_file->addChild('Default');
             $sxe->addAttribute('Extension', $imageCt);
-            $sxe->addAttribute('ContentType', 'image/'.$imageCt);
+            $sxe->addAttribute('ContentType', 'image/' . $imageCt);
             $this->SaveOpenXmlObjectToFile($ct_file, '[Content_Types].xml', false);
         }
     }
@@ -199,14 +205,14 @@ class DocxMustache
         $newIdCounter = 1;
 
         //iterate through all drawing containers of the xml document
-        foreach ($main_file->xpath('//w:drawing') as $k=>$drawing) {
+        foreach ($main_file->xpath('//w:drawing') as $k => $drawing) {
             //figure out if there is a URL saved in the description field of the img
             $img_url = $this->AnalyseImgUrlString($drawing->children($ns['wp'])->xpath('wp:docPr')[0]->attributes()['descr']);
             $main_file->xpath('//w:drawing')[$k]->children($ns['wp'])->xpath('wp:docPr')[0]->attributes()['descr'] = $img_url['rest'];
 
             //if there is a url, save this img as a img to be replaced
             if ($img_url['valid']) {
-                $ueid = 'wrklstId'.$newIdCounter;
+                $ueid = 'wrklstId' . $newIdCounter;
                 $wasId = (string) $main_file->xpath('//w:drawing')[$k]->children($ns['wp'])->children($ns['a'])->graphic->graphicData->children($ns['pic'])->pic->blipFill->children($ns['a'])->blip->attributes($ns['r'])['embed'];
 
                 //get dimensions
@@ -247,7 +253,7 @@ class DocxMustache
             $i = 0;
             foreach ($rels_file as $rel) {
                 if ((string) $rel->attributes()['Id'] == $img_replaced) {
-                    $this->zipper->remove('word/'.(string) $rel->attributes()['Target']);
+                    $this->zipper->remove('word/' . (string) $rel->attributes()['Target']);
                     unset($rels_file->Relationship[$i]);
                 }
                 $i++;
@@ -261,26 +267,28 @@ class DocxMustache
         $allowed_imgs = $docimage->AllowedContentTypeImages();
         $image_i = 1;
         //iterate through replacable images
-        foreach ($imgs as $k=>$img) {
-            $this->Log('Merge Images into Template - '.round($image_i / count($imgs) * 100).'%');
+        foreach ($imgs as $k => $img) {
+            $this->Log('Merge Images into Template - ' . round($image_i / count($imgs) * 100) . '%');
             //get file type of img and test it against supported imgs
             if ($imgageData = $docimage->GetImageFromUrl($img['mode'] == 'url' ? $img['url'] : $img['path'], $img['mode'] == 'url' ? $this->imageManipulation : '')) {
-                $imgs[$k]['img_file_src'] = str_replace('wrklstId', 'wrklst_image', $img['id']).$allowed_imgs[$imgageData['mime']];
-                $imgs[$k]['img_file_dest'] = str_replace('wrklstId', 'wrklst_image', $img['id']).'.jpeg';
+                $imgs[$k]['img_file_src'] = str_replace('wrklstId', 'wrklst_image', $img['id']) . $allowed_imgs[$imgageData['mime']];
+                $imgs[$k]['img_file_dest'] = str_replace('wrklstId', 'wrklst_image', $img['id']) . '.jpeg';
 
                 $resampled_img = $docimage->ResampleImage($this, $imgs, $k, $imgageData['data'], $dpi);
 
                 $sxe = $rels_file->addChild('Relationship');
                 $sxe->addAttribute('Id', $img['id']);
                 $sxe->addAttribute('Type', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image');
-                $sxe->addAttribute('Target', 'media/'.$imgs[$k]['img_file_dest']);
+                $sxe->addAttribute('Target', 'media/' . $imgs[$k]['img_file_dest']);
 
-                foreach ($main_file->xpath('//w:drawing') as $k=>$drawing) {
-                    if (null !== $main_file->xpath('//w:drawing')[$k]->children($ns['wp'])->children($ns['a'])
+                foreach ($main_file->xpath('//w:drawing') as $k => $drawing) {
+                    if (
+                        null !== $main_file->xpath('//w:drawing')[$k]->children($ns['wp'])->children($ns['a'])
                         ->graphic->graphicData->children($ns['pic'])->pic->blipFill &&
                         $img['id'] == $main_file->xpath('//w:drawing')[$k]->children($ns['wp'])->children($ns['a'])
-                        ->graphic->graphicData->children($ns['pic'])->pic->blipFill->children($ns['a'])
-                        ->blip->attributes($ns['r'])['embed']) {
+                            ->graphic->graphicData->children($ns['pic'])->pic->blipFill->children($ns['a'])
+                            ->blip->attributes($ns['r'])['embed']
+                    ) {
                         $main_file->xpath('//w:drawing')[$k]->children($ns['wp'])->children($ns['a'])
                             ->graphic->graphicData->children($ns['pic'])->pic->spPr->children($ns['a'])
                             ->xfrm->ext->attributes()['cx'] = $resampled_img['width_emus'];
@@ -349,7 +357,7 @@ class DocxMustache
                 $xmlerror .= $this->display_xml_error($error, explode("\n", $this->word_doc));
             }
             libxml_clear_errors();
-            $this->Log('Error: Could not load XML file. '.$xmlerror);
+            $this->Log('Error: Could not load XML file. ' . $xmlerror);
             libxml_clear_errors();
         }
     }
@@ -360,14 +368,14 @@ class DocxMustache
     */
     protected function display_xml_error($error, $xml)
     {
-        $return = $xml[$error->line - 1]."\n";
-        $return .= str_repeat('-', $error->column)."^\n";
+        $return = $xml[$error->line - 1] . "\n";
+        $return .= str_repeat('-', $error->column) . "^\n";
 
         switch ($error->level) {
             case LIBXML_ERR_WARNING:
                 $return .= "Warning $error->code: ";
                 break;
-                case LIBXML_ERR_ERROR:
+            case LIBXML_ERR_ERROR:
                 $return .= "Error $error->code: ";
                 break;
             case LIBXML_ERR_FATAL:
@@ -375,9 +383,9 @@ class DocxMustache
                 break;
         }
 
-        $return .= trim($error->message).
-                    "\n  Line: $error->line".
-                    "\n  Column: $error->column";
+        $return .= trim($error->message) .
+            "\n  Line: $error->line" .
+            "\n  Column: $error->column";
 
         if ($error->file) {
             $return .= "\n  File: $error->file";
@@ -400,8 +408,8 @@ class DocxMustache
         $url = '';
         $path = '';
 
-        if ($string != str_replace($start, '', $string) && $string == str_replace($start.$end, '', $string)) {
-            $string = ' '.$string;
+        if ($string != str_replace($start, '', $string) && $string == str_replace($start . $end, '', $string)) {
+            $string = ' ' . $string;
             $ini = strpos($string, $start);
             if ($ini == 0) {
                 $url = '';
@@ -413,7 +421,7 @@ class DocxMustache
 
                 $ini = strpos($string, $start);
                 $len = strpos($string, $end, $ini + strlen($start)) + strlen($end);
-                $rest = substr($string, 0, $ini).substr($string, $len);
+                $rest = substr($string, 0, $ini) . substr($string, $len);
             }
 
             $valid = true;
@@ -423,8 +431,8 @@ class DocxMustache
                 $valid = false;
             }
             $mode = 'url';
-        } elseif ($string != str_replace($start_local, '', $string) && $string == str_replace($start_local.$end_local, '', $string)) {
-            $string = ' '.$string;
+        } elseif ($string != str_replace($start_local, '', $string) && $string == str_replace($start_local . $end_local, '', $string)) {
+            $string = ' ' . $string;
             $ini = strpos($string, $start_local);
             if ($ini == 0) {
                 $path = '';
@@ -436,7 +444,7 @@ class DocxMustache
 
                 $ini = strpos($string, $start_local);
                 $len = strpos($string, $end_local, $ini + strlen($start)) + strlen($end_local);
-                $rest = substr($string, 0, $ini).substr($string, $len);
+                $rest = substr($string, 0, $ini) . substr($string, $len);
             }
 
             $valid = true;
@@ -471,7 +479,7 @@ class DocxMustache
             '--headless',
             '--convert-to',
             'pdf',
-            $this->StoragePath($this->local_path.$this->template_file_name),
+            $this->StoragePath($this->local_path . $this->template_file_name),
             '--outdir',
             $this->StoragePath($this->local_path),
         ]);
@@ -483,9 +491,9 @@ class DocxMustache
         if (!$process->isSuccessful()) {
             throw new \Symfony\Component\Process\Exception\ProcessFailedException($process);
         } else {
-            $path_parts = pathinfo($this->StoragePath($this->local_path.$this->template_file_name));
+            $path_parts = pathinfo($this->StoragePath($this->local_path . $this->template_file_name));
 
-            return $this->StoragePath($this->local_path.$path_parts['filename'].'pdf');
+            return $this->StoragePath($this->local_path . $path_parts['filename'] . 'pdf');
         }
     }
 }
